@@ -25,9 +25,11 @@ optional arguments:
 - python3 checkpointexport.py -n -f rule.txt: get nat rule list in rule.txt file, show to screen
 
 ## Format of rule file if using -f:
+
 1
 2,10
 40-50
+
 - For Application site, name of application site is used and only , can be used to list multiple names
 
 
