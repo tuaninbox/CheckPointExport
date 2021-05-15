@@ -1,0 +1,447 @@
+import requests, json, getpass, sys, os, csv, argparse, datetime
+import urllib3
+urllib3.disable_warnings()
+
+
+#=========== Management Server Declaration ========
+mgmt_host = '10.43.6.20'
+mgmt_port = '4434'
+#========== Other Parameter Declaration =========
+
+############## VARIABLES ##############
+username=str(os.environ.get("user"))
+password=str(os.environ.get("pass"))
+#######################################
+
+
+
+def readfile(filename):
+    result = []
+    with open(filename,"r") as f:
+        line = f.readlines()
+    l2=[]
+    for l in line:
+        l1=l.rstrip("\n")
+        l2=l1.split(",")
+        for l3 in l2:
+            if "-" in l3:
+                    l4=l3.split("-")
+                    assert (l4[1]>l4[0]),"list must be incremental"
+                    for i in range (int(l4[0]),int(l4[1])+1):
+                            result.append(str(i))
+                            i+=1
+            elif l3!="":
+                    result.append(l3)
+    return result
+
+
+def api_call(ip_addr, port, command, json_payload, sid):
+    url = 'https://' + ip_addr + ':' + port + '/web_api/' + command
+    if sid == '':
+        request_headers = {'Content-Type' : 'application/json'}
+    else:
+        request_headers = {'Content-Type' : 'application/json', 'X-chkp-sid' : sid}
+    r = requests.post(url,data=json.dumps(json_payload), headers=request_headers,verify=False)
+    return r.json()
+    
+
+def addapikey(name,sid):
+    command = 'add-api-key'
+    host_data= {'admin-name': name}
+    result = api_call(mgmt_host, mgmt_port,command,host_data,sid)
+    print(result)
+    ret ={"code":"","message":[]}
+    return result
+
+
+def login(username,password,domain=None):
+    if domain==None:
+        payload = {'user':username, 'password' : password}
+    else:
+        print(domain)
+        payload = {'user':username, 'password' : password, 'domain': "System Data"}
+    response = api_call(mgmt_host, mgmt_port, 'login',payload, '')
+    if "last-login-was-at" in response.keys():
+        print("Last logon was: {}".format(response['last-login-was-at']['iso-8601']))
+    else:
+        print(response)
+        print("Possibly, you haven't set username and password in environment variables")
+        sys.exit(1)
+    return response["sid"]
+
+
+def logout(user,password,sid):
+    logout_result = api_call(mgmt_host, mgmt_port,"logout", {},sid)
+    if logout_result["message"] == "OK":
+        print("logout successfully")
+    #print("logout result: " + json.dumps(logout_result))
+
+
+def isobjectbyip(ip, sid, iptype=None):
+    command = 'show-objects'
+    if iptype==None:
+        host_data= {'filter':ip}
+    else:
+        host_data= {'filter':ip, 'type':iptype}
+    result = api_call(mgmt_host, mgmt_port,command,host_data,sid)
+    ret ={"code":None,"total": None,"message":[]}
+    if "total" in result.keys(): #Successfully
+        ret["code"] = 0
+        ret["total"] = result["total"] # return code 0
+        ret["message"].append("uid, name, ip[/mask],type")
+        for r in result['objects']: 
+            m=""
+            m = m + r['uid'] + ", " + r['name'] + ", "
+            if "subnet4" in r:
+                m = m + r['subnet4'] + "/" + r['subnet-mask'] + ", "
+            elif "ipv4-address" in r:
+                m = m + r['ipv4-address'] + ", "
+            else:
+                m = m + ","
+            m = m + (r['type'])
+            ret["message"].append(m)
+    else: #Fail
+        ret["code"]=1
+        ret["message"].append("Failed")
+    return(ret) # no need to convert json to dict as it's a dict already
+    # Usage
+    # result=isobjectbyip(ip,sid,"network")
+    # print(result['code'])
+    # print("Number of Objects Found: ",result["total"])
+    # for r in result['message']:
+    #     print(r)
+
+
+def addhost(name,ip, sid):
+    command = 'add-host'
+    host_data= {'name':name, 'ipv4-address':ip}
+    result = api_call(mgmt_host, mgmt_port,command,host_data,sid)
+    ret ={"code":"","message":[]}
+    if "code" in result.keys(): #Error or Warning Occurs
+        #print(result['message'])
+        ret["code"]=1
+        if "warning" in result['message']:
+            for w in result['warnings']:
+                ret["message"].append('Warning: ' + w['message'])
+        if "error" in result['message']:
+            for w in result['errors']:
+                ret["message"].append('Error: ' + w['message'])
+    else: #Successfully
+        ret["code"]=0
+        ret["message"].append("Successful")
+    return(ret)
+    # Usage:
+    # result=addhost(name,ip,sid)
+    # print(result["code"])    
+    # for m in result["message"]:
+    #     print(m)
+
+
+def whereused(name, sid, indirect=False):
+    command = 'where-used'
+    if indirect==False:
+        host_data= {'name':name}
+    else:
+        host_data= {'name':name, 'indirect': direct}
+    result = api_call(mgmt_host, mgmt_port,command,host_data,sid)
+    #print(result)
+    ret ={"code":None, "direct": {"total": None,"message":[]}, "indirect": {"total": None, "message": []}}
+    if "used-directly" in result.keys(): #Successfully, direct rules
+        ret["code"] = 0
+        ret["direct"]["total"] = result["used-directly"]["total"] # return code 0
+        
+        if len(result['used-directly']['objects']) != 0:
+            ret['direct']["message"].append("object-uid, object-name")
+            for r in result['used-directly']['objects']: 
+                m=""
+                m = m + r['uid'] + ", " + r['name'] + ", "
+                ret['direct']["message"].append(m)
+            ret["direct"]["message"].append('\n')
+
+        if len(result['used-directly']['access-control-rules']) != 0:
+            ret['direct']["message"].append("uid, name, rule-columns, position, layer-uid, layer-name, package-uid, package-name")
+            for r in result['used-directly']['access-control-rules']:
+                m=""
+                m = m + r['rule']['uid'] + ", " + r['rule']['name'] + ", "
+                m = m + str(r['rule-columns']) + ", "
+                m = m + r['position'] + ", "
+                m = m + r['layer']['uid'] + ", " + r['layer']['name'] + ", "
+                m = m + r['package']['uid'] + ", " + r['package']['name']
+                ret['direct']["message"].append(m)
+            ret["direct"]["message"].append('\n')
+
+        if len(result['used-directly']['nat-rules']) != 0:
+            ret['direct']["message"].append("uid, name, rule-columns, position, layer-uid, layer-name, package-uid, package-name")
+            for r in result['used-directly']['nat-rules']:
+                m=""
+                m = m + r['rule']['uid'] + ", " + r['rule']['type'] + ", "
+                m = m + str(r['rule-columns']) + ", "
+                m = m + r['position'] + ", "
+                m = m + r['package']['uid'] + ", " + r['package']['name']
+                ret['direct']["message"].append(m)
+            ret["direct"]["message"].append('\n')
+            
+    elif "used-indirectly" in result.keys(): #Used Indirectly
+        ret["code"] = 0
+        ret["indirect"]["total"] = result["used-indirectly"]["total"] # return code 0
+        
+        ret['indirect']["message"].append("object-uid, object-name")
+        for r in result['used-indirectly']['objects']: 
+            m=""
+            m = m + r['uid'] + ", " + r['name'] + ", "
+            ret['indirect']["message"].append(m)
+        ret["indirect"]["message"].append('\n')
+        ret['indirect']["message"].append("uid, name, rule-columns, position, layer-uid, layer-name, package-uid, package-name")
+        for r in result['used-indirectly']['access-control-rules']:
+            m=""
+            m = m + r['rule']['uid'] + ", " + r['rule']['name'] + ", "
+            m = m + str(r['rule-columns']) + ", "
+            m = m + r['position'] + ", "
+            m = m + r['layer']['uid'] + ", " + r['layer']['name'] + ", "
+            m = m + r['package']['uid'] + ", " + r['package']['name']
+            ret['indirect']["message"].append(m)
+    return(ret) # no need to convert json to dict as it's a dict already
+    # Usage
+    # name='CEOWA-Leederville-NATOutbound'
+    # ip='10.25.2.26'
+    # result=whereused(name,sid)
+    # print("Return Code: ", result['code'])
+    # if args.writefile:   
+    #     filedata=[]
+    #     if result['direct']['total'] != None:
+    #         filedata.append("Number of Direct Objects used in"+","+str(result['direct']['total'])+"\n")
+    #         for r in result['direct']['message']:
+    #             #print(type(r))
+    #             filedata.append(r+"\n")
+
+    #     if result['indirect']['total'] != None:
+    #         filedata.append("Number of Indirect Objects used in"+","+str(result['indirect']['total'])+"\n")
+    #         for r in result['indirect']['message']:
+    #             filedata.append(r+"\n")
+    #     writetofile(filedata,args.writefile)    
+    # else: # Output to stdout
+    #     if result['direct']['total'] != None:
+    #         print("Number of Direct Objects used in : ", result['direct']['total'])
+    #         for r in result['direct']['message']:
+    #             print(r)
+
+    #     if result['indirect']['total'] != None:
+    #         print("Number of Indirect Objects used in : ", result['indirect']['total'])
+    #         for r in result['indirect']:
+    #             print(r['indirect']['message'])  
+
+
+def writetofile(data,file):
+    folder=os.path.dirname(file)
+    try:
+        os.makedirs(folder)
+    except OSError as e:
+        pass
+    with open(file, "wt") as f:
+        for d in data:
+            f.write(d)
+
+
+def get_key(data,key1,key2):
+    #print data
+    #print key
+    #print data.get("original-source").get("ipv4-address-first")
+    data1=data.get(key1)
+    #print "\n", data1
+    try:
+        if key2 == "":
+        #       print "Key2: ",key2
+                return str(data1)
+        else:
+                if key2 not in data1:
+                        key2="name"
+                return str(data1.get(key2))
+    except:
+        return "ERROR"
+
+
+def getaccesslayers(server,port,sid):
+    command = 'show-access-layers'
+    layer = 'Network'
+    host_data = {"limit" : 50, "offset" : 0, "details-level" : "standard"}
+    result = api_call(mgmt_host, mgmt_port,command,host_data,sid)
+    print(json.dumps(result))
+    formatted_table = json2html.convert(json=result)
+    print(formatted_table)
+        #print result
+        #print ("{0:>8s}{1:>14s}{2:>14s}{3:>14s}{4:>14s}{5:>20s}{6:>14s}  {7:<70s}".format(str(rulenumber), str(result["original-source"]["ipv4-address-first"]), str(result["original-destination"]["ipv4-address"]), str(result["original-service"]["name"]), str(result["translated-source"]["ipv4-address"]), str(result["translated-destination"]["ipv4-address"]), str(result["translated-service"]["name"]), str(result["comments"])))
+
+
+def getnatrule(server,port,rulelist,sid):
+    command = 'show-nat-rule'
+    policy = 'DC_Policy'
+    #print("{0:>8s}{1:>30s}{2:>14s}{3:>10s}{4:>14s}{5:>14s}{6:>20s}{7:>20s}   {8:<70s}".format("Rule","Source","Destination","Port","Protocol","NAT_Src","NAT_Dest","NAT_Services","Comment"))
+    header=["Rule","Source","Destination","Port","Protocol","NAT_Src","NAT_Dest","NAT_Services","Comment"]
+    listofrule=[]
+    listofrule.append(header)
+    for rulenumber in rulelist:
+        host_data = {'rule-number':rulenumber, 'package':policy}
+        result = api_call(mgmt_host, mgmt_port,command, host_data ,sid)
+        rule=[]
+        rule.append(rulenumber)
+        rule.append(get_key(result,'original-source','ipv4-address-first')) #0
+        rule.append(get_key(result,'original-destination','ipv4-address')) #1
+        rule.append(get_key(result,'original-service','port')) #2
+        rule.append(get_key(result,'original-service','type')) #3
+        rule.append(get_key(result,'translated-source','ipv4-address')) #4
+        rule.append(get_key(result,'translated-destination','ipv4-address')) #5
+        rule.append(get_key(result,'translated-service','name')) #6
+        rule.append(get_key(result,'comments','')) #7
+
+        listofrule.append(rule)
+        #print ("{0:>8s}{1:>30s}{2:>14s}{3:>10s}{4:>14s}{5:>14s}{6:>20s}{7:>20s}   {8:<70s}".format(str(rulenumber), rule[0], rule[1], rule[2],rule[3], rule[4], rule[5], rule[6], rule[7]))
+    return listofrule
+
+
+def getaccessrule(server,port,rulelist,sid):
+    command = 'show-access-rule'
+    layer = 'DC_Policy Security'
+    header=["Rule","Name","SourceNegate","Source","Destination","ServiceName","Action","Content-Negate","Time","Comment","Install-On"]
+    listofrule=[]
+    listofrule.append(header)
+    for rulenumber in rulelist:
+        host_data = {'rule-number':rulenumber, 'layer':layer}
+        result = api_call(mgmt_host, mgmt_port,command, host_data ,sid)
+        rule=[]
+        rule.append(rulenumber)
+        rule.append(get_key(result,'name','')) #0
+        if result['source-negate'] != False:
+            rule.append("NOT")
+        #rule.append(result['source']) #2
+        #rule.append(result['source']['subnet-mask']) #2
+        for item in result['destination']:
+            if 'name' in item:
+                rule.append(item['name']) #3
+        if result['service-negate'] != False:
+            rule.append("NOT")
+        for item in result['service']:
+            if 'name' in item:
+                rule.append(item['name']) #4
+        rule.append(result['action']['name']) #5
+        if result['content-negate'] != False:
+            rule.append("NOT") #6
+        for item in result['time']:
+            if 'name' in item:
+                rule.append(item['name']) #7
+        rule.append(result['comments']) #7
+        for item in result['install-on']:
+            if 'name' in item:
+                rule.append(item['name']) #7
+
+        listofrule.append(rule)
+        #print ("{0:>8s}{1:>30s}{2:>14s}{3:>10s}{4:>14s}{5:>14s}{6:>20s}{7:>20s}   {8:<70s}".format(str(rulenumber), rule[0], rule[1], rule[2],rule[3], rule[4], rule[5], rule[6], rule[7]))
+    return listofrule
+
+    # #OLD
+    # for rulenumber in rulelist:
+    #     host_data = {'rule-number':rulenumber, 'layer':layer}
+    #     result = api_call(mgmt_host, mgmt_port,command, host_data ,sid)
+    # return result
+
+
+def printresult(rulelist):
+    for rulenumber in rulelist:
+        for i,item in enumerate(rulenumber):
+            print(item.replace("\n"," "),end="")
+            if i < len(rulenumber)-1: #print , if item from 1 - 8 
+                print(",",end="")
+        print("")
+
+
+def main():
+    parser=argparse.ArgumentParser(description='CheckPoint API')
+    parser.add_argument('-w','--writefile',type=str,metavar='',help='Write to File')
+    parser.add_argument('-t','--type',type=str,metavar='',choices=['nat','access'], help='Rule Type: nat, access')
+    group=parser.add_mutually_exclusive_group()
+    group.add_argument('-f','--find',type=str,metavar='',help='object name to find')
+    group.add_argument('-l','--list',type=str,metavar='',help='File contains list of input')
+
+    #SubParser for -l or --list command
+    # subparser = parser.add_subparsers(help='Options for -l, --list command')
+    # parserlist = subparser.add_parser('-t')
+    # parserlist.add_argument('-t','--type',type=str,metavar='',required=True,choices=['nat','access'], help='Rule Type: nat, access')
+
+    group1=parser.add_mutually_exclusive_group()
+    group1.add_argument('-c','--command',type=str,metavar='',help='Command to run\ngar: get access rule\ngnr: get nat rule')
+    group1.add_argument('-i','--interactive',action='store_true',help='Interactive Session')
+    args=parser.parse_args() 
+    sid = login(username,password)
+    #Get NAT Rule
+    if args.list and args.type == "nat":
+        rulelist=readfile(args.list)
+        result=getnatrule(mgmt_host,mgmt_port,rulelist,sid)
+        printresult(result)
+    #Get Access Rule
+    elif args.list and args.type == "access":
+        rulelist=readfile(args.list)
+        result=getaccessrule(mgmt_host,mgmt_port,rulelist,sid)
+        #print(result)
+        printresult(result)
+    #Get Where-used
+    elif args.find:
+        result=whereused(args.find,sid)
+    else:
+        print("Specify Rule Type with -t")
+        print("Example: {} -l <input file> -t [nat|access]".format(sys.argv[0]))
+        sys.exit(1)
+
+
+    # if args.writefile:
+    #     writetofile(result,args.writefile)
+    # else:
+    #     printresult(result)
+
+
+
+    # name='CEOWA-Leederville-NATOutbound'
+    # ip='180.95.40.201'
+    # result=whereused(ip,sid)
+    # print("Return Code: ", result['code'])
+    # if args.writefile:   
+    #     filedata=[]
+    #     if result['direct']['total'] != None:
+    #         filedata.append("Number of Direct Objects used in"+","+str(result['direct']['total'])+"\n")
+    #         for r in result['direct']['message']:
+    #             #print(type(r))
+    #             filedata.append(r+"\n")
+
+    #     if result['indirect']['total'] != None:
+    #         filedata.append("Number of Indirect Objects used in"+","+str(result['indirect']['total'])+"\n")
+    #         for r in result['indirect']['message']:
+    #             filedata.append(r+"\n")
+    #     writetofile(filedata,args.writefile)    
+    # else: # Output to stdout
+    #     if result['direct']['total'] != None:
+    #         print("Number of Direct Objects used in : ", result['direct']['total'])
+    #         for r in result['direct']['message']:
+    #             print(r)
+
+    #     if result['indirect']['total'] != None:
+    #         print("Number of Indirect Objects used in : ", result['indirect']['total'])
+    #         for r in result['indirect']:
+    #             print(r['indirect']['message'])  
+
+    
+    #Log out
+    logout(username,password,sid)
+
+#    rulelist=['1232']
+    
+    #print(sid)
+    #print("session id: " + sid)
+    #name='CE_admin-Tuan_Hoang_Laptop'
+    #name='School_8267-SMTP-Server_3'
+    #name='CEOWA-Leederville-NATOutbound'
+    # ip='10.25.2.26'
+    # file="./input.txt"
+    # result=readfile(file)
+    # print(result)
+    
+
+if __name__ == '__main__':
+    main()
