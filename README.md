@@ -26,9 +26,9 @@ optional arguments:
 
 ## Format of rule file if using -f:
 
->1
->2,10
->40-50
+> 1
+> 2,10
+> 40-50
 
 - For Application site, name of application site is used and only , can be used to list multiple names
 
