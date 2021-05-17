@@ -6,7 +6,7 @@
 - Network Group queried by name
 
 ## Syntax
-usage: checkpointexport.py [-h] [-w] (-f  | -r ) (-n | -a | -as)
+usage: checkpointexport.py [-h] [-w] (-f  | -r ) (-n | -a | -as | -g)
 
 Check Point Policy Management
 
@@ -18,6 +18,7 @@ optional arguments:
   -n, --nat                 nat policy
   -a, --access              security access
   -as, --applicationsite    applicaiton site
+  -g, --group               network group
 
 ## Example:
 - python3 checkpointexport.py -a -r 10,100: get access rule 10 and 100, show to screen
