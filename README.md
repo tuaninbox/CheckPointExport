@@ -1,7 +1,7 @@
 # Check Point Policy and Object Export
 ## Supported Policy and Object:
 - Nat Rule queried by rule number
-- Access Rule, including inline Policy, queried by rule number of main rules, inline policy will be queried automatically. This can be used to query just inline policy directly by using its inline policy name
+- Access Rule, including inline Policy, queried by rule number of main rules, inline policy will be queried automatically. This can be used to query inline policy directly by using its inline policy name
 - Application Site queried by name
 - Network Group queried by name
 
