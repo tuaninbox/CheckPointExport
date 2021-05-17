@@ -25,13 +25,19 @@ optional arguments:
 - python3 checkpointexport.py -a -r 10-100: get access rule 10 to 100, show to screen
 - python3 checkpointexport.py -a -r 10-100 -w accessrule10to100.csv: get access rule 10 to 100, save to accessrule10to100.csv file
 - python3 checkpointexport.py -n -f rule.txt: get nat rule list in rule.txt file, show to screen
+- python3 checkpointexport.py -as -r Blocked_Sites: get application site list with name Blocked_Sites, show to screen
 
-## Format of rule file if using -f:
+## Format of rule file if using -f: number
 
 1  
 2,10  
 40-50  
-60  
+60
+
+## Format of rule file if using -f: name  
+
+Allowed_Sites,Block_Sites  
+Web_Servers  
 
 - For number items, numbers which are usually rule, list of rules separated by comma (,) and range of rules separated by dash (-), no space between numbers, comma or dash
 - For name items, list of names can be separated by comma (,) without space before or after. 
