@@ -1,8 +1,9 @@
 # Check Point Policy and Object Export
 ## Supported Policy and Object:
-- Nat Rule
-- Access Rule, including inline Policy
-- Application Site
+- Nat Rule queried by rule number
+- Access Rule, including inline Policy, queried by rule number of main rules, inline policy will be queried automatically. This can be used to query just inline policy directly by using its inline policy name
+- Application Site queried by name
+- Network Group queried by name
 
 ## Syntax
 usage: checkpointexport.py [-h] [-w] (-f  | -r ) (-n | -a | -as)
@@ -33,7 +34,8 @@ optional arguments:
 60
 ```
 
-- For Application site, name of application site is used and only , can be used to list multiple names
+- For number items, numbers which are usually rule, list of rules separated by comma (,) and range of rules separated by dash (-), no space between numbers, comma or dash
+- FOr name items, list of names can be separated by comma (,) without space before or after. 
 
 
 
