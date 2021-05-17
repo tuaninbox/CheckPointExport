@@ -34,12 +34,13 @@ optional arguments:
 40-50  
 60
 
+- For number items, numbers which are usually rule, list of rules separated by comma (,) and range of rules separated by dash (-), no space between numbers, comma or dash
+
 ## Format of rule file if using -f: name  
 
 Allowed_Sites,Block_Sites  
 Web_Servers  
 
-- For number items, numbers which are usually rule, list of rules separated by comma (,) and range of rules separated by dash (-), no space between numbers, comma or dash
 - For name items, list of names can be separated by comma (,) without space before or after. 
 
 
