@@ -1,8 +1,11 @@
 import requests, json, sys, os, argparse
+from getpass import getpass
 from json2html import *
 import urllib3
 urllib3.disable_warnings()
 
+def printstatus(rulenumber):
+    print('Exporting Rule : '+str(rulenumber), end='\r')
 
 def checkcredential():
     global mgmt_host
@@ -10,16 +13,28 @@ def checkcredential():
     global mgmt_port
     mgmt_port = str(os.environ.get("mgmtport"))
     global username
-    username=str(os.environ.get("user"))
+    username=str(os.environ.get("cpuser"))
     global password
-    password=str(os.environ.get("pass"))
+    password=str(os.environ.get("cppass"))
     if mgmt_host == "None" or mgmt_port == "None" or username == "None" or password == "None":
         print("The following environment variables need to be set")
         print("mgmthost: {}".format(mgmt_host))
         print("mgmtport: {}".format(mgmt_port))
         print("user: {}".format(username))
         print("pass: {}".format(len(password)))
-        return 0
+        # q=input("Do you want to set them temporarily?[y/n] ")
+        # if q == "y" or q == "Y":
+        #     mgmt_host=input("Management IP? ")
+        #     os.environ['mgmthost']=mgmt_host
+        #     mgmt_port=input("Management Port? ")
+        #     os.environ['mgmtport']=mgmt_port
+        #     username=input("Username? ")
+        #     os.environ['cpuser']=username
+        #     password=getpass(prompt="Password? ")
+        #     os.environ['cppass']=password
+        #     return 1
+        # else:
+        return 0 
     else:
         return 1
 
@@ -102,47 +117,94 @@ def getaccesslayers(server,port,sid):
     formatted_table = json2html.convert(json=result)
     print(formatted_table)
 
-def getnatrule(server,port,rulelist,sid):
+def getnatrule(server,port,rulelist,policy,sid,verbose=True):
     command = 'show-nat-rule'
-    policy = 'DC_Policy'
-    header=["Rule","Source","Destination","Port","Protocol","NAT_Src","NAT_Dest","NAT_Services","Comment"]
+    header=["Rule","Source","Destination","Port","NAT_Src","NAT_Dest","NAT_Services","Enabled","Install-on","Comment","Last-modify-time","Last-modifier","Creation-time","Creator"]
     listofrule=[]
     listofrule.append(header)
     for rulenumber in rulelist:
-        host_data = {'rule-number':rulenumber, 'package':policy}
+        host_data = {'rule-number':rulenumber, 'package':str(policy)}
         result = api_call(mgmt_host, mgmt_port,command, host_data ,sid)
         rule=[]
+        if verbose:
+            printstatus(rulenumber)
+        #print(result)
         rule.append(rulenumber)
-        rule.append(get_key(result,'original-source','ipv4-address-first')) #0
-        rule.append(get_key(result,'original-destination','ipv4-address')) #1
-        rule.append(get_key(result,'original-service','port')) #2
-        rule.append(get_key(result,'original-service','type')) #3
-        rule.append(get_key(result,'translated-source','ipv4-address')) #4
-        rule.append(get_key(result,'translated-destination','ipv4-address')) #5
-        rule.append(get_key(result,'translated-service','name')) #6
-        rule.append(get_key(result,'comments','')) #7
+        # Original Source
+        originalsource=""
+        if result['original-source']['type'] == 'host':
+            originalsource=result['original-source']['name'] + " - " + result['original-source']['ipv4-address']
+        elif result['original-source']['type'] == 'group':
+            originalsource="Group(" + result['original-source']['name'] + ")"
+        elif result['original-source']['type'] == 'address-range':
+            originalsource="Address Range (" + result['original-source']['name'] + ")"
+        else:
+            originalsource=result['original-source']['name']
+        rule.append(originalsource) 
+
+        #Original Destination
+        originaldestination=""
+        if result['original-destination']['type'] == 'group' or result['original-destination']['type'] == 'address-range':
+            originaldestination=result['original-destination']['name']
+        elif result['original-destination']['type'] == 'host':
+            originaldestination=result['original-destination']['name'] + " - " + result['original-destination']['ipv4-address']
+        rule.append(originaldestination) 
+
+        #Original Service
+        originalservice=""
+        if result['original-service']['type'] == 'CpmiAnyObject':
+            originalservice = result['original-service']['name']
+        elif result['original-service']['type'] == 'service-tcp' or result['original-service']['type'] == 'service-udp':
+            originalservice = result['original-service']['port'] + "/" + result['original-service']['type'][-3:]
+        rule.append(originalservice) 
+        
+        #TranslatedSource
+        translatedsource=""
+        if result['translated-source']['type'] == 'host':
+            translatedsource=result['method']+" ("+result['translated-source']['name'] + " - " + result['translated-source']['ipv4-address'] + ")"
+        if result['translated-source']['type'] == 'Global':
+            translatedsource=result['translated-source']['name']
+        rule.append(translatedsource) 
+
+        #TranslatedDestination
+        translateddestination=""
+        if result['translated-destination']['type'] == 'host':
+            translatedsource=result['translated-destination']['name'] + " - " + result['translated-destination']['ipv4-address']
+        if result['translated-destination']['type'] == 'Global':
+            translatedsource=result['translated-destination']['name']
+        rule.append(translateddestination) 
+        rule.append(result['translated-service']['name']) 
+        rule.append(result['enabled'])
+        rule.append(result['install-on'][0]['name'])
+        rule.append(result['comments']) 
+        rule.append(result['meta-info']['last-modify-time']['iso-8601'])
+        rule.append(result['meta-info']['last-modifier'])
+        rule.append(result['meta-info']['creation-time']['iso-8601'])
+        rule.append(result['meta-info']['creator'])
         listofrule.append(rule)
     return listofrule
 
-def getaccessrule(server,port,rulelist,sid):
+def getaccessrule(server,port,rulelist,layer,sid,verbose=True):
     command = 'show-access-rule'
-    layer = 'DC_Policy Security'
-    header=["Rule","Name","Source","Destination","Services","VPN","Content","Action","Time","Track","Install On","Comment"]
+    header=["Rule","Name","Source","Destination","Services","VPN","Content","Action","Time","Track","Install On","Comment","Last-modify-time","Last-modifier","Creation-time","Creator"]
     listofrule=[]
     listofrule.append(header)
     for rulenumber in rulelist:
-        host_data = {'rule-number':rulenumber, 'layer':layer}
+        host_data = {'rule-number':rulenumber, 'layer':str(layer)}
         result = api_call(mgmt_host, mgmt_port,command, host_data ,sid)
         rule=[]
         rule.append(rulenumber)
-        rule.append(get_key(result,'name',"")) #0
+        if verbose:
+            printstatus(rulenumber+"    ")
+        #print(result)
+        name=""
+        if 'name' in result:
+            name=result['name']
+        rule.append(name)
         listofsource=""
         for r in result['source']:
             for k,v in r.items():
                 if k == 'type' and v == 'host':
-                    # print(k,": ",v,end='')
-                    # print("name:",r['name'],end='')
-                    # print("IP: ",r['ipv4-address'])
                     source = r['name'] + " - IP: " + r['ipv4-address'] + " + "
                 if k == 'type' and v == 'network':
                     # print(k,": ",v,end='')
@@ -195,7 +257,11 @@ def getaccessrule(server,port,rulelist,sid):
         rule.append(result['time'][0]['name'])
         rule.append(result['track']['type']['name'])
         rule.append(result['install-on'][0]['name'])
-        rule.append(result['comments'])            
+        rule.append(result['comments'])
+        rule.append(result['meta-info']['last-modify-time']['iso-8601'])
+        rule.append(result['meta-info']['last-modifier'])
+        rule.append(result['meta-info']['creation-time']['iso-8601'])
+        rule.append(result['meta-info']['creator'])            
         listofrule.append(rule)
         if result['action']['name'] == "Inner Layer":
             inlinelayer=result['inline-layer']['name']
@@ -205,9 +271,9 @@ def getaccessrule(server,port,rulelist,sid):
                 listofrule.append(r)
     return listofrule
 
-def getaccessruleinline(server,port,parentrule,total,layer,sid,addheader):
+def getaccessruleinline(server,port,parentrule,total,layer,sid,addheader,verbose=True):
     command = 'show-access-rule'
-    header=["Rule","Name","Source","Destination","Services","VPN","Content","Action","Time","Track","Install On","Comment"]
+    header=["Rule","Name","Source","Destination","Services","VPN","Content","Action","Time","Track","Install On","Comment","Last-modify-time","Last-modifier","Creation-time","Creator"]
     listofrule=[]
     if addheader == 1:
         listofrule.append(header)
@@ -215,7 +281,10 @@ def getaccessruleinline(server,port,parentrule,total,layer,sid,addheader):
         host_data = {'rule-number':rulenumber, 'layer':layer}
         result = api_call(mgmt_host, mgmt_port,command, host_data ,sid)
         rule=[]
-        rule.append(str(parentrule)+"."+str(rulenumber))
+        subrulenumber=str(parentrule)+"."+str(rulenumber)
+        rule.append(subrulenumber)
+        if verbose:
+            printstatus(subrulenumber)
         rule.append(get_key(result,'name',"")) #0
         listofsource=""
         for r in result['source']:
@@ -271,7 +340,11 @@ def getaccessruleinline(server,port,parentrule,total,layer,sid,addheader):
         rule.append(result['time'][0]['name'])
         rule.append(result['track']['type']['name'])
         rule.append(result['install-on'][0]['name'])
-        rule.append(result['comments'])            
+        rule.append(result['comments'])
+        rule.append(result['meta-info']['last-modify-time']['iso-8601'])
+        rule.append(result['meta-info']['last-modifier'])
+        rule.append(result['meta-info']['creation-time']['iso-8601'])
+        rule.append(result['meta-info']['creator'])            
         listofrule.append(rule)
     return listofrule
 
@@ -326,15 +399,15 @@ def getnetworkgroup(server,port,groups,sid):
             output.append(listofmembers)
     return output
 
-def printresult(data,printto,format,filename="output.txt"):
+def printresult(data,printto,format,filename="output.txt",delimiter=";"):
     try:
         output=""
         if format=="csv":
             for line in data:
                 for i,item in enumerate(line):
-                    output+=item.replace("\n","")+","
+                    output+=str(item).replace("\n","")+str(delimiter)
                 output+="\n"
-        elif format=="text":
+        elif format=="txt" or format=="text":
             data.pop(0)
             for line in data:
                 for i,item in enumerate(line):
@@ -350,6 +423,7 @@ def printresult(data,printto,format,filename="output.txt"):
         print(e)
 
 def main():
+
 #Menu
     parser=argparse.ArgumentParser(description='Check Point Policy Management')
     parser.add_argument('-w','--writefile',type=str,metavar='',help='File to write output to')
@@ -357,10 +431,11 @@ def main():
     group1.add_argument('-f','--file',type=str,metavar='',help='File contains rule list')
     group1.add_argument('-r','--rule',type=str,metavar='',help='Rule list, dash or comma separted, no space')
     group=parser.add_mutually_exclusive_group(required=True)
-    group.add_argument('-n', '--nat',action='store_true', help='nat policy')
-    group.add_argument('-a', '--access',action='store_true', help='security access')
-    group.add_argument('-as', '--applicationsite',action='store_true', help='applicaiton site')
-    group.add_argument('-g', '--group',action='store_true', help='network group')
+    group.add_argument('-n', '--nat',action='store_true', help='NAT Policy')
+    group.add_argument('-s', '--security',action='store_true', help='Access Security')
+    group.add_argument('-a', '--application',action='store_true', help='Access Application')
+    group.add_argument('-as', '--applicationsite',action='store_true', help='Applicaiton Site')
+    group.add_argument('-g', '--group',action='store_true', help='Network Group')
     args=parser.parse_args()
 
 #GET Rule List or Application Site Name List
@@ -379,30 +454,39 @@ def main():
     else:
         print("Please set host and credential!")
         sys.exit(1)
-
 #NAT RULE
     if args.nat:
-        result=getnatrule(mgmt_host,mgmt_port,rulelist,sid)
+        policy = "DC_Policy"
+        result=getnatrule(mgmt_host,mgmt_port,rulelist,policy,sid)
+        #print(result)
         if not args.writefile:
             printresult(result,"stdout","csv")
         else:
             printresult(result,"file","csv",args.writefile)
 
-#ACCESS RULE
-    if args.access:
-        result = getaccessrule(mgmt_host,mgmt_port,rulelist,sid)
+#SECURITY ACCESS RULE
+    if args.security:
+        layer = "DC_Policy Security"
+        result = getaccessrule(mgmt_host,mgmt_port,rulelist,layer,sid)
         if not args.writefile:
             printresult(result,"stdout","csv")
         else:
             printresult(result,"file","csv",args.writefile)
 
+#APPLICATION ACCESS RULE
+    if args.application:
+        result = getaccessrule(mgmt_host,mgmt_port,rulelist,layer,sid)
+        if not args.writefile:
+            printresult(result,"stdout","csv")
+        else:
+            printresult(result,"file","csv",args.writefile)
 #Application Site
     if args.applicationsite:
         result=getapplicationsite(mgmt_host,mgmt_port,rulelist,sid)
         if not args.writefile:
             printresult(result,"stdout","csv")
         else:
-            printresult(result,"file","csv",args.writefile)
+            printresult(result,"file","txt",args.writefile)
     
 #Network Group
     if args.group:
@@ -424,5 +508,35 @@ def main():
     # getaccesslayers(mgmt_host,mgmt_port,sid)
     # logout(username,password,sid)	
 
+# def menu(command_line=None):
+#     parser = argparse.ArgumentParser('Blame Praise app')
+#     subparsers = parser.add_subparsers(dest='command')
+#     subparsers.required = True
+#     access = subparsers.add_parser('access', help='Security Access Rule')
+#     access.add_argument(
+#         '--dry-run',
+#         help='do not blame, just pretend',
+#         action='store_true'
+#     )
+#     access.add_argument('name', nargs='+', help='name(s) to blame')
+#     praise = subprasers.add_parser('praise', help='praise someone')
+#     praise.add_argument('name', help='name of person to praise')
+#     praise.add_argument(
+#         'reason',
+#         help='what to praise for (optional)',
+#         default="no reason",
+#         nargs='?'
+#     )
+#     args = parser.parse_args(command_line)
+#     if args.debug:
+#         print("debug: " + str(args))
+#     if args.command == 'blame':
+#         if args.dry_run:
+#             print("Not for real")
+#         print("blaming " + ", ".join(args.name))
+#     elif args.command == 'praise':
+#         print('praising ' + args.name + ' for ' + args.reason)
+
 if __name__ == '__main__':
     main()
+    #menu()
