@@ -20,8 +20,8 @@ def checkcredential():
         print("The following environment variables need to be set")
         print("mgmthost: {}".format(mgmt_host))
         print("mgmtport: {}".format(mgmt_port))
-        print("user: {}".format(username))
-        print("pass: {}".format(len(password)))
+        print("cpuser: {}".format(username))
+        print("cppass: {}".format(len(password)))
         # q=input("Do you want to set them temporarily?[y/n] ")
         # if q == "y" or q == "Y":
         #     mgmt_host=input("Management IP? ")
@@ -169,9 +169,9 @@ def getnatrule(server,port,rulelist,policy,sid,verbose=True):
         #TranslatedDestination
         translateddestination=""
         if result['translated-destination']['type'] == 'host':
-            translatedsource=result['translated-destination']['name'] + " - " + result['translated-destination']['ipv4-address']
+            translateddestination=result['translated-destination']['name'] + " - " + result['translated-destination']['ipv4-address']
         if result['translated-destination']['type'] == 'Global':
-            translatedsource=result['translated-destination']['name']
+            translateddestination=result['translated-destination']['name']
         rule.append(translateddestination) 
         rule.append(result['translated-service']['name']) 
         rule.append(result['enabled'])
@@ -196,7 +196,8 @@ def getaccessrule(server,port,rulelist,layer,sid,verbose=True):
         rule.append(rulenumber)
         if verbose:
             printstatus(rulenumber+"    ")
-        #print(result)
+        # print(result)
+        # os.exit(1)
         name=""
         if 'name' in result:
             name=result['name']
@@ -241,6 +242,8 @@ def getaccessrule(server,port,rulelist,layer,sid,verbose=True):
         listofservice=""
         for r in result['service']:
             if r['name'] == "Any" or r['type']=="service-group":
+                service=r['name'] + " + "
+            elif r['name'] == "Any" or r['type']=="application-site":
                 service=r['name'] + " + "
             elif r['type']=="service-tcp":
                 service=r['name']+(" - TCP/") +r['port'] + " + "
@@ -396,7 +399,34 @@ def getnetworkgroup(server,port,groups,sid):
                 listofmembers.append(r['subnet4']+"/"+str(r['mask-length4']))
             if r['type'] == 'address-range':
                 listofmembers.append(r['ipv4-address-first']+"-"+str(r['ipv4-address-last']))
+            if r['type'] == 'group':
+                subgroups=getsubgroup(server,port,groupname,r['name'],sid)
+                for sg in subgroups:
+                    listofmembers.append(sg)
             output.append(listofmembers)
+    return output
+
+def getsubgroup(server,port,parentgroup,group,sid):
+    command = 'show-group'
+    header=["GroupName","Name","Type","Address"]
+    output=[]
+    output.append(header)
+    #for groupname in groups:
+    host_data = {'name':group}
+    print(group)
+    result = api_call(mgmt_host, mgmt_port,command, host_data ,sid)
+    for r in result['members']:
+        listofmembers=[]
+        listofmembers.append(parentgroup+"/"+group)
+        listofmembers.append(r['name'])
+        listofmembers.append(r['type'])
+        if r['type'] == 'host':
+            listofmembers.append(r['ipv4-address'])
+        if r['type'] == 'network':
+            listofmembers.append(r['subnet4']+"/"+str(r['mask-length4']))
+        if r['type'] == 'address-range':
+            listofmembers.append(r['ipv4-address-first']+"-"+str(r['ipv4-address-last']))
+        output.append(listofmembers)
     return output
 
 def printresult(data,printto,format,filename="output.txt",delimiter=";"):
@@ -451,6 +481,7 @@ def main():
 #CHECK if credential set  
     if checkcredential():
         sid = login(mgmt_host, mgmt_port, username,password)
+        print(sid)
     else:
         print("Please set host and credential!")
         sys.exit(1)
@@ -475,6 +506,7 @@ def main():
 
 #APPLICATION ACCESS RULE
     if args.application:
+        layer = "DC_Policy Application"
         result = getaccessrule(mgmt_host,mgmt_port,rulelist,layer,sid)
         if not args.writefile:
             printresult(result,"stdout","csv")

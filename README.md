@@ -6,19 +6,20 @@
 - Network Group queried by name
 
 ## Syntax
-usage: checkpointexport.py [-h] [-w] (-f  | -r ) (-n | -a | -as | -g)
+usage: checkpointexport.py [-h] [-w] (-f  | -r ) (-n | -s | -a | -as | -g)
 
 Check Point Policy Management
 
 optional arguments:
-  -h, --help                show this help message and exit
-  -w , --writefile          File to write output to
-  -f , --file               File contains rule list
-  -r , --rule               Rule list, dash or comma separted, no space
-  -n, --nat                 nat policy
-  -a, --access              security access
-  -as, --applicationsite    applicaiton site
-  -g, --group               network group
+  -h, --help             show this help message and exit
+  -w , --writefile       File to write output to
+  -f , --file            File contains rule list
+  -r , --rule            Rule list, dash or comma separted, no space
+  -n, --nat              NAT Policy
+  -s, --security         Access Security
+  -a, --application      Access Application
+  -as, --applicationsite Application Site
+  -g, --group            Network Group
 
 ## Example:
 - python3 checkpointexport.py -a -r 10,100: get access rule 10 and 100, show to screen
