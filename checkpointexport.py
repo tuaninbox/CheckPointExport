@@ -1,6 +1,6 @@
 import requests, json, sys, os, argparse
 from getpass import getpass
-from json2html import *
+#from json2html import *
 import urllib3
 urllib3.disable_warnings()
 
@@ -22,18 +22,6 @@ def checkcredential():
         print("mgmtport: {}".format(mgmt_port))
         print("cpuser: {}".format(username))
         print("cppass: {}".format(len(password)))
-        # q=input("Do you want to set them temporarily?[y/n] ")
-        # if q == "y" or q == "Y":
-        #     mgmt_host=input("Management IP? ")
-        #     os.environ['mgmthost']=mgmt_host
-        #     mgmt_port=input("Management Port? ")
-        #     os.environ['mgmtport']=mgmt_port
-        #     username=input("Username? ")
-        #     os.environ['cpuser']=username
-        #     password=getpass(prompt="Password? ")
-        #     os.environ['cppass']=password
-        #     return 1
-        # else:
         return 0 
     else:
         return 1
@@ -83,12 +71,14 @@ def api_call(ip_addr, port, command, json_payload, sid):
     else:
         request_headers = {'Content-Type' : 'application/json', 'X-chkp-sid' : sid}
     r = requests.post(url,data=json.dumps(json_payload), headers=request_headers,verify=False)
-    return r.json()
+    print(r)
+    #return r.json()
 
 def login(host, port, user,password):
     payload = {'user':user, 'password' : password}
     response = api_call(host, port, 'login',payload, '')
-    return response["sid"]
+    print(response)
+    #return response["sid"]
 
 def logout(user,password,sid):
     logout_result = api_call(mgmt_host, mgmt_port,"logout", {},sid)
