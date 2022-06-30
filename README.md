@@ -1,6 +1,5 @@
 # Check Point Firewall Policy and Object Manager
 ## Demo
-![Demo](./Check Point Policy Manager.gif)
 ![Demo](https://github.com/tuaninbox/CheckPointExport/blob/master/Check%20Point%20Policy%20Manager.gif?raw=true)
 
 ## Supported Policies and Objects:
@@ -11,9 +10,9 @@
 
 ## Syntax
 usage: cppm.py [-h] [-w] (-f  | -r ) (-n | -s | -a | -as | -g | -ds | -da | -es | -ea | -t)
-<br>
+<br><br>
 Check Point Policy Management
-<br>
+<br><br>
 optional arguments:<br>
   -h, --help                 show this help message and exit<br>
   -w , --writefile           File to write output to<br>
