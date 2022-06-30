@@ -1,4 +1,4 @@
-import requests, json, sys, os, argparse
+import requests, json, sys, os, argparse, time
 from getpass import getpass
 #from json2html import *
 import urllib3
@@ -20,10 +20,8 @@ class bcolors:
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
 
-
 def printstatus(rulenumber):
     print('Exporting Rule : '+str(rulenumber), end='\r')
-
 
 def checkcredential1():
     global mgmt_host
@@ -70,11 +68,11 @@ def getnumberlist(input,typeofinput):
             list=l.split("-")
             assert (int(list[1])>int(list[0])),"list must be incremental"
             for i in range (int(list[0]),int(list[1])+1):
-                result.append(str(i))
+                result.append(int(i))
                 i+=1
         elif "," in l:
             for i in l.split(","):
-                result.append(i)
+                result.append(int(i))
         elif l!="":
             result.append(l)
     return result
@@ -119,18 +117,34 @@ def logout(user,password,sid):
     #print("logout result: " + json.dumps(logout_result))	
 
 def discardchanges(user,password,sid,verbose=0):
-    logout_result = api_call(mgmt_host, mgmt_port,"discard", {},sid)
-    if logout_result["message"] == "OK":
-        print("Discard changes successfully")				
-    if verbose:
-        print("Discard result: " + json.dumps(logout_result))
+    answers = ['y', 'Y', 'N', 'n']
+    answer = None
+    while answer not in answers:
+        print(f"{bcolors.YELLOW}\nCAUTION: {bcolors.CYAN}You are working on {bcolors.PURPLE}{PolicyName}{bcolors.ENDC}")
+        answer = input("Are you sure to discard all changes?[Y|N] ")
+        if answer in ['y','Y']:
+            result = api_call(mgmt_host, mgmt_port,"discard", {},sid)
+            if result["message"] == "OK":
+                print("Discard changes successfully")				
+            if verbose:
+                print("Discard result: " + json.dumps(logout_result))
+        if answer in ['n','N']:
+            print("Changes were not discarded")
 
-def publish(user,password,sid,verbose=0):
-    logout_result = api_call(mgmt_host, mgmt_port,"discard", {},sid)
-    if logout_result["message"] == "OK":
-        print("Discard changes successfully")				
-    if verbose:
-        print("Discard result: " + json.dumps(logout_result))				
+def publishchanges(user,password,sid,verbose=0):
+    answers = ['y', 'Y', 'N', 'n']
+    answer = None
+    while answer not in answers:
+        print(f"{bcolors.YELLOW}\nCAUTION: {bcolors.CYAN}You are working on {bcolors.PURPLE}{PolicyName}{bcolors.ENDC}")
+        answer = input("Are you sure to publish all changes?[Y|N] ")
+        if answer in ['y','Y']:
+            result = api_call(mgmt_host, mgmt_port,"publish", {},sid)
+            if result["task-id"]:
+                print(f"Published changes successfully. Task ID: {result['task-id']}")				
+            if verbose:
+                print("Publish result: " + json.dumps(result))
+        if answer in ['n','N']:
+            print("Changes were not published")			
 
 def get_key(data,key1,key2):
     data1=data.get(key1)
@@ -223,18 +237,30 @@ def getnatrule(server,port,rulelist,policy,sid,verbose=True):
     return listofrule
 
 def getaccessrulebynumber(server,port,rulelist,layer,sid,verbose=True):
+    #get total number of rule
+    totalrule = getnumberofrule(server,port,layer,sid)
+    #remove duplicates from list
+    rulelist=list(dict.fromkeys(rulelist))
+    #sort list 
+    rulelist.sort()
     command = 'show-access-rule'
     header=["Rule","Name","Source","Destination","Services","VPN","Content","Action","Time","Track","Install On","Comment","Last-modify-time","Last-modifier","Creation-time","Creator","Enabled","UID"]
     listofrule=[]
     listofrule.append(header)
     for rulenumber in rulelist:
+        if int(rulenumber) > totalrule:
+            rulenumber = totalrule
         host_data = {'rule-number':rulenumber, 'layer':str(layer)}
         result = api_call(server, port,command, host_data ,sid)
         #print(f"Access Rule {result}\n")
+        #print(f"Access Rule Source {result['source']}\n")
+        #print(f"Access Rule Destination {result['destination']}\n")
+        #print(f"Access Rule Service {result['service']}\n")
+        #print(f"Access Rule VPN {result['vpn']}\n")
         rule=[]
         rule.append(rulenumber)
         if verbose:
-            printstatus(rulenumber+"    ")
+            printstatus(str(rulenumber)+"    ")
         name=""
         if 'name' in result:
             name=result['name']
@@ -317,6 +343,12 @@ def getaccessrulebynumber(server,port,rulelist,layer,sid,verbose=True):
             inlinerule=getaccessruleinline(mgmt_host,mgmt_port,rulenumber,totalinlinerule,inlinelayer,sid,0)
             for r in inlinerule:
                 listofrule.append(r)
+        if rulenumber == totalrule:
+            break
+    #Print notice if total rule is less than input list
+    if totalrule < int(max(rulelist)):
+        print(f"{bcolors.YELLOW}There are only {totalrule} rules{bcolors.ENDC}")
+        time.sleep(2)
     return listofrule
 
 def getaccessruleinline(server,port,parentrule,total,layer,sid,addheader,verbose=True):
@@ -378,8 +410,6 @@ def getaccessruleinline(server,port,parentrule,total,layer,sid,addheader,verbose
                 service=r['name']+(" - TCP/") +r['port'] + " + "
             elif r['type']=="service-udp":
                 service=r['name']+(" - UDP/") +r['port'] + " + "
-            else:
-                service=r['name'] + " + "
             listofservice+=service
         if result['service-negate'] == False:
             rule.append(listofservice[:-3])
@@ -412,7 +442,7 @@ def getnumberofrule(server,port,layer,sid,verbose=0):
     #print(formatted_table)
     if verbose:
         print(result)
-    return result['total']
+    return int(result['total'])
 
 def getapplicationsite(server,port,names,sid):
     command = 'show-application-site'
@@ -510,6 +540,11 @@ def printresult(data,printto,format,filename="output.txt",delimiter=";"):
         print(e)
 
 def disablerules(server,port,rulelist,layer,sid,verbose=0):
+    #get total number of rule
+    totalrule = getnumberofrule(server,port,layer,sid)
+    if int(max(rulelist)) > int(totalrule):
+        print(f"There are only {bcolors.YELLOW}{totalrule} rules\n{bcolors.RED}Due to impact of this function, please check rule list carefully{bcolors.ENDC}")
+        return 0
     command = 'set-access-rule'
     listofrule=[]
     for rulenumber in rulelist:
@@ -517,10 +552,15 @@ def disablerules(server,port,rulelist,layer,sid,verbose=0):
         result = api_call(server, port,command, host_data ,sid)
         listofrule.append(rulenumber)
         if verbose:
-            print(f"Access Rule {result}\n")
+            print(f"Rule {result}\n")
     return listofrule
 
 def enablerules(server,port,rulelist,layer,sid,verbose=0):
+    #get total number of rule
+    totalrule = getnumberofrule(server,port,layer,sid)
+    if int(max(rulelist)) > int(totalrule):
+        print(f"There are only {bcolors.YELLOW}{totalrule} rules\n{bcolors.RED}Due to impact of this function, please check rule list carefully{bcolors.ENDC}")
+        return 0
     command = 'set-access-rule'
     listofrule=[]
     for rulenumber in rulelist:
@@ -528,13 +568,31 @@ def enablerules(server,port,rulelist,layer,sid,verbose=0):
         result = api_call(server, port,command, host_data ,sid)
         listofrule.append(rulenumber)
         if verbose:
-            print(f"Access Rule {result}\n")
+            print(f"Rule {result}\n")
     return listofrule
 
+def removerules(server,port,rulelist,layer,sid,verbose=0):
+    #Sort rule list last rule first as the last rule must be deleted first
+    rulelist.sort(reverse=True)
+    #get total number of rule
+    totalrule = getnumberofrule(server,port,layer,sid)
+    if int(max(rulelist)) > int(totalrule):
+        print(f"There are only {bcolors.YELLOW}{totalrule} rules\n{bcolors.RED}Due to impact of this function, please check rule list carefully{bcolors.ENDC}")
+        return 0
+    command = 'delete-access-rule'
+    listofrule=[]
+    for rulenumber in rulelist:
+        host_data = {'rule-number':rulenumber, 'layer':str(layer)}
+        result = api_call(server, port,command, host_data ,sid)
+        listofrule.append(rulenumber)
+        if verbose:
+            print(f"Deleted Rule {result}\n")
+    listofrule.sort()
+    return listofrule
 
 def main():
 
-#Menu
+    #Menu
     parser=argparse.ArgumentParser(description='Check Point Policy Management')
     parser.add_argument('-w','--writefile',type=str,metavar='',help='File to write output to')
     group1=parser.add_mutually_exclusive_group(required=True)
@@ -550,99 +608,161 @@ def main():
     group.add_argument('-da', '--disableapplication',action='store_true', help='Disable Application Rule')
     group.add_argument('-es', '--enablesecurity',action='store_true', help='Enable Security Rule')
     group.add_argument('-ea', '--enableapplication',action='store_true', help='Enable Application Rule')
+    group.add_argument('-rs', '--removesecurity',action='store_true', help='Remove Security Rule')
+    group.add_argument('-ra', '--removeapplication',action='store_true', help='Remove Application Rule')
     group.add_argument('-t', '--test',action='store_true', help='For Testing Purpose')
     args=parser.parse_args()
 
-#Test
+    #Test
     if args.test:
-    #    getaccesslayers(mgmt_host,mgmt_port,sid)
+        #    getaccesslayers(mgmt_host,mgmt_port,sid)
         #layer = PolicyName + " Security"
         #result = disables(mgmt_host,mgmt_port,rulelist,layer,sid)
         print("Testing")
         sys.exit(1)
         
-#GET Rule List or Application Site Name List
+    #GET Rule List or Application Site Name List
+    ## Get name list like application sites or group name from file -f 
     if args.applicationsite or args.group and args.file:
         rulelist=getnamelist(args.file,"f")
+    ## Get name list like application sites or group name from cli -r
     elif args.applicationsite or args.group and args.rule:
         rulelist=getnamelist(args.rule,"r")
+    ## Get number rule list from file -f
     elif args.file:
         rulelist=getnumberlist(args.file,"f")
+    ## Get number rule list from cli -r
     elif args.rule:
         rulelist=getnumberlist(args.rule,"r")
 
-#CHECK if credential set  
+    #CHECK if credential set  
     if checkcredential1():
-        sid = login(mgmt_host, mgmt_port, username,password)
+        try:
+            sid = login(mgmt_host, mgmt_port, username,password)
+        except Exception as e:
+            print(e)
     else:
         print("Please set host and credential!")
         sys.exit(1)
 
-#DISABLE SECURITY RULE
+    #DISABLE SECURITY RULE
     if args.disablesecurity:
-    #   getaccesslayers(mgmt_host,mgmt_port,sid)
+        #getaccesslayers(mgmt_host,mgmt_port,sid)
         layer = PolicyName + " Security"
         #Get Policy Before Disabling
-        result = getaccessrulebynumber(mgmt_host,mgmt_port,rulelist,layer,sid)
-        printresult(result,"stdout","csv")
+        #result = getaccessrulebynumber(mgmt_host,mgmt_port,rulelist,layer,sid)
+        #printresult(result,"stdout","csv")
         #Disable
         result = disablerules(mgmt_host,mgmt_port,rulelist,layer,sid)
-        print(result)
+        print("Disabled Security Rules: ",end="")
+        for r in result:
+            print(f"{r}, ",end="")
         #Get Policy After Disabling
-        result = getaccessrulebynumber(mgmt_host,mgmt_port,rulelist,layer,sid)
-        printresult(result,"stdout","csv")
-        #Discard Changes
-        discardchanges(username,password,sid,1)
+        #result = getaccessrulebynumber(mgmt_host,mgmt_port,rulelist,layer,sid)
+        #printresult(result,"stdout","csv")
+        #Publish Changes
+        publishchanges(username,password,sid,1)
 
-#DISABLE APPLICATION RULE
+    #DISABLE APPLICATION RULE
     if args.disableapplication:
-    #   getaccesslayers(mgmt_host,mgmt_port,sid)
+        #   getaccesslayers(mgmt_host,mgmt_port,sid)
         layer = PolicyName + " Application"
         #Get Policy Before Disabling
-        result = getaccessrulebynumber(mgmt_host,mgmt_port,rulelist,layer,sid)
-        printresult(result,"stdout","csv")
+        #result = getaccessrulebynumber(mgmt_host,mgmt_port,rulelist,layer,sid)
+        #printresult(result,"stdout","csv")
         #Disable
         result = disablerules(mgmt_host,mgmt_port,rulelist,layer,sid)
-        print(result)
+        print("Disabled Application Rules: ",end="")
+        for r in result:
+            print(f"{r}, ",end="")
         #Get Policy After Disabling
-        result = getaccessrulebynumber(mgmt_host,mgmt_port,rulelist,layer,sid)
-        printresult(result,"stdout","csv")
-        #Discard Changes
-        discardchanges(username,password,sid,1)
+        #result = getaccessrulebynumber(mgmt_host,mgmt_port,rulelist,layer,sid)
+        #printresult(result,"stdout","csv")
+        #Publish Changes
+        publishchanges(username,password,sid,1)
 
-#ENABLE SECURITY RULE
+    #ENABLE SECURITY RULE
     if args.enablesecurity:
+        #   getaccesslayers(mgmt_host,mgmt_port,sid)
+        layer = PolicyName + " Security"
+        #Get Policy Before Disabling
+        #result = getaccessrulebynumber(mgmt_host,mgmt_port,rulelist,layer,sid)
+        #printresult(result,"stdout","csv")
+        #Disable
+        result = enablerules(mgmt_host,mgmt_port,rulelist,layer,sid)
+        print("Enabled Security Rules: ",end="")
+        for r in result:
+            print(f"{r}, ",end="")
+        #Get Policy After Disabling
+        #result = getaccessrulebynumber(mgmt_host,mgmt_port,rulelist,layer,sid)
+        #printresult(result,"stdout","csv")
+        #Publish Changes
+        publishchanges(username,password,sid)
+
+    #ENABLE APPLICATION RULE
+    if args.enableapplication:
+        #   getaccesslayers(mgmt_host,mgmt_port,sid)
+        layer = PolicyName + " Application"
+        #Get Policy Before Disabling
+        #result = getaccessrulebynumber(mgmt_host,mgmt_port,rulelist,layer,sid)
+        #printresult(result,"stdout","csv")
+        #Disable
+        result = enablerules(mgmt_host,mgmt_port,rulelist,layer,sid)
+        print("Enabled Application Rules: ",end="")
+        for r in result:
+            print(f"{r}, ",end="")
+        #Get Policy After Disabling
+        #result = getaccessrulebynumber(mgmt_host,mgmt_port,rulelist,layer,sid)
+        #printresult(result,"stdout","csv")
+        #Publish Changes
+        publishchanges(username,password,sid)
+
+    #REMOVE SECURITY RULE
+    if args.removesecurity:
     #   getaccesslayers(mgmt_host,mgmt_port,sid)
         layer = PolicyName + " Security"
         #Get Policy Before Disabling
-        result = getaccessrulebynumber(mgmt_host,mgmt_port,rulelist,layer,sid)
-        printresult(result,"stdout","csv")
-        #Disable
-        result = enablerules(mgmt_host,mgmt_port,rulelist,layer,sid)
-        print(result)
-        #Get Policy After Disabling
-        result = getaccessrulebynumber(mgmt_host,mgmt_port,rulelist,layer,sid)
-        printresult(result,"stdout","csv")
-        #Discard Changes
-        discardchanges(username,password,sid,1)
+        #result = getaccessrulebynumber(mgmt_host,mgmt_port,rulelist,layer,sid)
+        #printresult(result,"stdout","csv")
+        #REMOVE
+        result = removerules(mgmt_host,mgmt_port,rulelist,layer,sid)
+        #If result = 0 (not successful), do nothing
+        if not result:
+            print("Nothing was changed")
+        else:
+            print("Removed Security Rules: ",end="")
+            for r in result:
+                print(f"{r}, ",end="")
+            #Get Policy After Disabling
+            #result = getaccessrulebynumber(mgmt_host,mgmt_port,rulelist,layer,sid)
+            #printresult(result,"stdout","csv")
+            #Publish Changes
+            publishchanges(username,password,sid)
+        
 
-#ENABLE APPLICATION RULE
-    if args.enableapplication:
+    #REMOVE APPLICATION RULE
+    if args.removeapplication:
     #   getaccesslayers(mgmt_host,mgmt_port,sid)
         layer = PolicyName + " Application"
         #Get Policy Before Disabling
-        result = getaccessrulebynumber(mgmt_host,mgmt_port,rulelist,layer,sid)
-        printresult(result,"stdout","csv")
-        #Disable
-        result = enablerules(mgmt_host,mgmt_port,rulelist,layer,sid)
-        print(result)
-        #Get Policy After Disabling
-        result = getaccessrulebynumber(mgmt_host,mgmt_port,rulelist,layer,sid)
-        printresult(result,"stdout","csv")
-        #Discard Changes
-        discardchanges(username,password,sid,1)
+        #result = getaccessrulebynumber(mgmt_host,mgmt_port,rulelist,layer,sid)
+        #printresult(result,"stdout","csv")
+        #REMOVE
+        result = removerules(mgmt_host,mgmt_port,rulelist,layer,sid)
+        #If result = 0 (not successful), do nothing
+        if not result:
+            print("Nothing was changed")
+        else:
+            print("Removed Application Rules: ",end="")
+            for r in result:
+                print(f"{r}, ",end="")
+            #Get Policy After Disabling
+            #result = getaccessrulebynumber(mgmt_host,mgmt_port,rulelist,layer,sid)
+            #printresult(result,"stdout","csv")
+            #Publish Changes
+            publishchanges(username,password,sid)
 
-#NAT RULE
+    #NAT RULE
     if args.nat:
         policy = PolicyName
         result=getnatrule(mgmt_host,mgmt_port,rulelist,policy,sid)
@@ -652,9 +772,9 @@ def main():
         else:
             printresult(result,"file","csv",args.writefile)
 
-#SECURITY ACCESS RULE
+    #SECURITY ACCESS RULE
     if args.security:
-    #    getaccesslayers(mgmt_host,mgmt_port,sid)
+    #   getaccesslayers(mgmt_host,mgmt_port,sid)
         layer = PolicyName + " Security"
         result = getaccessrulebynumber(mgmt_host,mgmt_port,rulelist,layer,sid)
         if not args.writefile:
@@ -662,15 +782,16 @@ def main():
         else:
             printresult(result,"file","csv",args.writefile)
 
-#APPLICATION ACCESS RULE
+    #APPLICATION ACCESS RULE
     if args.application:
         layer = PolicyName + " Application"
-        result = getaccessrule(mgmt_host,mgmt_port,rulelist,layer,sid)
+        result = getaccessrulebynumber(mgmt_host,mgmt_port,rulelist,layer,sid)
         if not args.writefile:
             printresult(result,"stdout","csv")
         else:
             printresult(result,"file","csv",args.writefile)
-#Application Site
+    
+    #Application Site
     if args.applicationsite:
         result=getapplicationsite(mgmt_host,mgmt_port,rulelist,sid)
         if not args.writefile:
@@ -678,7 +799,7 @@ def main():
         else:
             printresult(result,"file","txt",args.writefile)
     
-#Network Group
+    #Network Group
     if args.group:
         result=getnetworkgroup(mgmt_host,mgmt_port,rulelist,sid)
         if not args.writefile:
@@ -686,11 +807,8 @@ def main():
         else:
             printresult(result,"file","csv",args.writefile)
 
-#Access Rule Inline
-    # result=getaccessruleinline(mgmt_host,mgmt_port,totalinlinerule,inlinelayer,sid)
-#ACCESS LAyer
-    # getaccesslayers(mgmt_host,mgmt_port,sid)
-    # logout(username,password,sid)	
+    #Log out gracefully
+    logout(username,password,sid)	
 
 def menu(command_line=None):
     parser = argparse.ArgumentParser('Blame Praise app')
