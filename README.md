@@ -27,6 +27,8 @@ optional arguments:<br>
   -da, --disableapplication  Disable Application Rule<br>
   -es, --enablesecurity      Enable Security Rule<br>
   -ea, --enableapplication   Enable Application Rule<br>
+  -rs, --removesecurity      Remove Security Rule<br>
+  -ra, --removeapplication   Remove Application Rule<br>
   -t, --test                 For Testing Purpose<br>
 
 
