@@ -1,4 +1,7 @@
 # Check Point Firewall Policy and Object Manager
+## Demo
+[[./Check Point Policy Manager.gif|Demo]]
+
 ## Supported Policies and Objects:
 - Nat Rule queried by rule number
 - Access Rule, including inline Policy, queried by rule number of main rules, inline policy will be queried automatically. This can be used to query inline policy directly by using its inline policy name
@@ -6,27 +9,33 @@
 - Network Group queried by name
 
 ## Syntax
-usage: checkpointexport.py [-h] [-w] (-f  | -r ) (-n | -s | -a | -as | -g)
+usage: cppm.py [-h] [-w] (-f  | -r ) (-n | -s | -a | -as | -g | -ds | -da | -es | -ea | -t)
 
 Check Point Policy Management
 
 optional arguments:
-  -h, --help             show this help message and exit
-  -w , --writefile       File to write output to
-  -f , --file            File contains rule list
-  -r , --rule            Rule list, dash or comma separted, no space
-  -n, --nat              NAT Policy
-  -s, --security         Access Security
-  -a, --application      Access Application
-  -as, --applicationsite Application Site
-  -g, --group            Network Group
+  -h, --help                 show this help message and exit
+  -w , --writefile           File to write output to
+  -f , --file                File contains rule list
+  -r , --rule                Rule list, dash or comma separted, no space
+  -n, --nat                  NAT Policy
+  -s, --security             Access Security
+  -a, --application          Access Application
+  -as, --applicationsite     Applicaiton Site
+  -g, --group                Network Group
+  -ds, --disablesecurity     Disable Security Rule
+  -da, --disableapplication  Disable Application Rule
+  -es, --enablesecurity      Enable Security Rule
+  -ea, --enableapplication   Enable Application Rule
+  -t, --test                 For Testing Purpose
+
 
 ## Example:
-- python3 checkpointexport.py -a -r 10,100: get access rule 10 and 100, show to screen
-- python3 checkpointexport.py -a -r 10-100: get access rule 10 to 100, show to screen
-- python3 checkpointexport.py -a -r 10-100 -w accessrule10to100.csv: get access rule 10 to 100, save to accessrule10to100.csv file
-- python3 checkpointexport.py -n -f rule.txt: get nat rule list in rule.txt file, show to screen
-- python3 checkpointexport.py -as -r Blocked_Sites: get application site list with name Blocked_Sites, show to screen
+- python3 cppm.py -a -r 10,100: get access rule 10 and 100, show to screen
+- python3 cppm.py -a -r 10-100: get access rule 10 to 100, show to screen
+- python3 cppm.py -a -r 10-100 -w accessrule10to100.csv: get access rule 10 to 100, save to accessrule10to100.csv file
+- python3 cppm.py -n -f rule.txt: get nat rule list in rule.txt file, show to screen
+- python3 cppm.py -as -r Blocked_Sites: get application site list with name Blocked_Sites, show to screen
 
 ## Format of rule file if using -f: number
 
