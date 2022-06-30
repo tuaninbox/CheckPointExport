@@ -1,6 +1,7 @@
 # Check Point Firewall Policy and Object Manager
 ## Demo
-[[[./Check Point Policy Manager.gif](https://github.com/tuaninbox/CheckPointExport/blob/master/Check%20Point%20Policy%20Manager.gif?raw=true)|Demo]]
+![Demo](./Check Point Policy Manager.gif)
+![Demo](https://github.com/tuaninbox/CheckPointExport/blob/master/Check%20Point%20Policy%20Manager.gif?raw=true)
 
 ## Supported Policies and Objects:
 - Nat Rule queried by rule number
@@ -10,24 +11,24 @@
 
 ## Syntax
 usage: cppm.py [-h] [-w] (-f  | -r ) (-n | -s | -a | -as | -g | -ds | -da | -es | -ea | -t)
-
+<br>
 Check Point Policy Management
-
-optional arguments:
-  -h, --help                 show this help message and exit
-  -w , --writefile           File to write output to
-  -f , --file                File contains rule list
-  -r , --rule                Rule list, dash or comma separted, no space
-  -n, --nat                  NAT Policy
-  -s, --security             Access Security
-  -a, --application          Access Application
-  -as, --applicationsite     Applicaiton Site
-  -g, --group                Network Group
-  -ds, --disablesecurity     Disable Security Rule
-  -da, --disableapplication  Disable Application Rule
-  -es, --enablesecurity      Enable Security Rule
-  -ea, --enableapplication   Enable Application Rule
-  -t, --test                 For Testing Purpose
+<br>
+optional arguments:<br>
+  -h, --help                 show this help message and exit<br>
+  -w , --writefile           File to write output to<br>
+  -f , --file                File contains rule list<br>
+  -r , --rule                Rule list, dash or comma separted, no space<br>
+  -n, --nat                  NAT Policy<br>
+  -s, --security             Access Security<br>
+  -a, --application          Access Application<br>
+  -as, --applicationsite     Applicaiton Site<br>
+  -g, --group                Network Group<br>
+  -ds, --disablesecurity     Disable Security Rule<br>
+  -da, --disableapplication  Disable Application Rule<br>
+  -es, --enablesecurity      Enable Security Rule<br>
+  -ea, --enableapplication   Enable Application Rule<br>
+  -t, --test                 For Testing Purpose<br>
 
 
 ## Example:
