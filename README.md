@@ -1,6 +1,6 @@
 # Check Point Firewall Policy and Object Manager
 ## Demo
-[[./Check Point Policy Manager.gif|Demo]]
+[[[./Check Point Policy Manager.gif](https://github.com/tuaninbox/CheckPointExport/blob/master/Check%20Point%20Policy%20Manager.gif?raw=true)|Demo]]
 
 ## Supported Policies and Objects:
 - Nat Rule queried by rule number
