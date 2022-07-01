@@ -56,7 +56,9 @@ def checkcredential():
         if password == "":
             raise
     except:
-        password= getpass("Password: ")
+        password=str(os.environ.get("cppass"))
+        if password == "None":
+            password = getpass("Password: ")
     global PolicyName
     try:
         PolicyName = SERVER["policyname"]
@@ -625,223 +627,237 @@ def removerules(server,port,rulelist,layer,sid,verbose=0):
 
 def main():
 
-    #Menu
-    parser=argparse.ArgumentParser(description='Check Point Policy Management')
-    parser.add_argument('-w','--writefile',type=str,metavar='',help='File to write output to')
-    group1=parser.add_mutually_exclusive_group(required=True)
-    group1.add_argument('-f','--file',type=str,metavar='',help='File contains rule list')
-    group1.add_argument('-r','--rule',type=str,metavar='',help='Rule list, dash or comma separted, no space')
-    group=parser.add_mutually_exclusive_group(required=True)
-    group.add_argument('-n', '--nat',action='store_true', help='NAT Policy')
-    group.add_argument('-s', '--security',action='store_true', help='Access Security')
-    group.add_argument('-a', '--application',action='store_true', help='Access Application')
-    group.add_argument('-as', '--applicationsite',action='store_true', help='Applicaiton Site')
-    group.add_argument('-g', '--group',action='store_true', help='Network Group')
-    group.add_argument('-ds', '--disablesecurity',action='store_true', help='Disable Security Rule')
-    group.add_argument('-da', '--disableapplication',action='store_true', help='Disable Application Rule')
-    group.add_argument('-es', '--enablesecurity',action='store_true', help='Enable Security Rule')
-    group.add_argument('-ea', '--enableapplication',action='store_true', help='Enable Application Rule')
-    group.add_argument('-rs', '--removesecurity',action='store_true', help='Remove Security Rule')
-    group.add_argument('-ra', '--removeapplication',action='store_true', help='Remove Application Rule')
-    group.add_argument('-t', '--test',action='store_true', help='For Testing Purpose')
-    args=parser.parse_args()
+    try:
+        #Menu
+        parser=argparse.ArgumentParser(description='Check Point Policy Management')
+        parser.add_argument('-w','--writefile',type=str,metavar='',help='File to write output to')
+        group1=parser.add_mutually_exclusive_group(required=True)
+        group1.add_argument('-f','--file',type=str,metavar='',help='File contains rule list')
+        group1.add_argument('-r','--rule',type=str,metavar='',help='Rule list, dash or comma separted, no space')
+        group=parser.add_mutually_exclusive_group(required=True)
+        group.add_argument('-n', '--nat',action='store_true', help='NAT Policy')
+        group.add_argument('-s', '--security',action='store_true', help='Access Security')
+        group.add_argument('-a', '--application',action='store_true', help='Access Application')
+        group.add_argument('-as', '--applicationsite',action='store_true', help='Applicaiton Site')
+        group.add_argument('-g', '--group',action='store_true', help='Network Group')
+        group.add_argument('-ds', '--disablesecurity',action='store_true', help='Disable Security Rule')
+        group.add_argument('-da', '--disableapplication',action='store_true', help='Disable Application Rule')
+        group.add_argument('-es', '--enablesecurity',action='store_true', help='Enable Security Rule')
+        group.add_argument('-ea', '--enableapplication',action='store_true', help='Enable Application Rule')
+        group.add_argument('-rs', '--removesecurity',action='store_true', help='Remove Security Rule')
+        group.add_argument('-ra', '--removeapplication',action='store_true', help='Remove Application Rule')
+        group.add_argument('-t', '--test',action='store_true', help='For Testing Purpose')
+        args=parser.parse_args()
 
-    #Test
-    if args.test:
-        #    getaccesslayers(mgmt_host,mgmt_port,sid)
-        #layer = PolicyName + " Security"
-        #result = disables(mgmt_host,mgmt_port,rulelist,layer,sid)
-        print("Testing")
-        sys.exit(1)
-        
-    #GET Rule List or Application Site Name List
-    ## Get name list like application sites or group name from file -f 
-    if args.applicationsite or args.group and args.file:
-        rulelist=getnamelist(args.file,"f")
-    ## Get name list like application sites or group name from cli -r
-    elif args.applicationsite or args.group and args.rule:
-        rulelist=getnamelist(args.rule,"r")
-    ## Get number rule list from file -f
-    elif args.file:
-        rulelist=getnumberlist(args.file,"f")
-    ## Get number rule list from cli -r
-    elif args.rule:
-        rulelist=getnumberlist(args.rule,"r")
+        #Test
+        if args.test:
+            #    getaccesslayers(mgmt_host,mgmt_port,sid)
+            #layer = PolicyName + " Security"
+            #result = disables(mgmt_host,mgmt_port,rulelist,layer,sid)
+            print("Testing")
+            sys.exit(1)
+            
+        #GET Rule List or Application Site Name List
+        ## Get name list like application sites or group name from file -f 
+        if args.applicationsite or args.group and args.file:
+            rulelist=getnamelist(args.file,"f")
+        ## Get name list like application sites or group name from cli -r
+        elif args.applicationsite or args.group and args.rule:
+            rulelist=getnamelist(args.rule,"r")
+        ## Get number rule list from file -f
+        elif args.file:
+            rulelist=getnumberlist(args.file,"f")
+        ## Get number rule list from cli -r
+        elif args.rule:
+            rulelist=getnumberlist(args.rule,"r")
 
-    #CHECK if credential set  
-    if checkcredential():
-        try:
-            sid = login(mgmt_host, mgmt_port, username,password)
-        except Exception as e:
-            print(e)
-    else:
-        print("Please set host and credential!")
-        sys.exit(1)
-
-    #DISABLE SECURITY RULE
-    if args.disablesecurity:
-        #getaccesslayers(mgmt_host,mgmt_port,sid)
-        layer = PolicyName + " Security"
-        #Get Policy Before Disabling
-        #result = getaccessrulebynumber(mgmt_host,mgmt_port,rulelist,layer,sid)
-        #printresult(result,"stdout","csv")
-        #Disable
-        result = disablerules(mgmt_host,mgmt_port,rulelist,layer,sid)
-        print("Disabled Security Rules: ",end="")
-        for r in result:
-            print(f"{r}, ",end="")
-        #Get Policy After Disabling
-        #result = getaccessrulebynumber(mgmt_host,mgmt_port,rulelist,layer,sid)
-        #printresult(result,"stdout","csv")
-        #Publish Changes
-        publishchanges(username,password,sid,1)
-
-    #DISABLE APPLICATION RULE
-    if args.disableapplication:
-        #   getaccesslayers(mgmt_host,mgmt_port,sid)
-        layer = PolicyName + " Application"
-        #Get Policy Before Disabling
-        #result = getaccessrulebynumber(mgmt_host,mgmt_port,rulelist,layer,sid)
-        #printresult(result,"stdout","csv")
-        #Disable
-        result = disablerules(mgmt_host,mgmt_port,rulelist,layer,sid)
-        print("Disabled Application Rules: ",end="")
-        for r in result:
-            print(f"{r}, ",end="")
-        #Get Policy After Disabling
-        #result = getaccessrulebynumber(mgmt_host,mgmt_port,rulelist,layer,sid)
-        #printresult(result,"stdout","csv")
-        #Publish Changes
-        publishchanges(username,password,sid,1)
-
-    #ENABLE SECURITY RULE
-    if args.enablesecurity:
-        #   getaccesslayers(mgmt_host,mgmt_port,sid)
-        layer = PolicyName + " Security"
-        #Get Policy Before Disabling
-        #result = getaccessrulebynumber(mgmt_host,mgmt_port,rulelist,layer,sid)
-        #printresult(result,"stdout","csv")
-        #Disable
-        result = enablerules(mgmt_host,mgmt_port,rulelist,layer,sid)
-        print("Enabled Security Rules: ",end="")
-        for r in result:
-            print(f"{r}, ",end="")
-        #Get Policy After Disabling
-        #result = getaccessrulebynumber(mgmt_host,mgmt_port,rulelist,layer,sid)
-        #printresult(result,"stdout","csv")
-        #Publish Changes
-        publishchanges(username,password,sid)
-
-    #ENABLE APPLICATION RULE
-    if args.enableapplication:
-        #   getaccesslayers(mgmt_host,mgmt_port,sid)
-        layer = PolicyName + " Application"
-        #Get Policy Before Disabling
-        #result = getaccessrulebynumber(mgmt_host,mgmt_port,rulelist,layer,sid)
-        #printresult(result,"stdout","csv")
-        #Disable
-        result = enablerules(mgmt_host,mgmt_port,rulelist,layer,sid)
-        print("Enabled Application Rules: ",end="")
-        for r in result:
-            print(f"{r}, ",end="")
-        #Get Policy After Disabling
-        #result = getaccessrulebynumber(mgmt_host,mgmt_port,rulelist,layer,sid)
-        #printresult(result,"stdout","csv")
-        #Publish Changes
-        publishchanges(username,password,sid)
-
-    #REMOVE SECURITY RULE
-    if args.removesecurity:
-    #   getaccesslayers(mgmt_host,mgmt_port,sid)
-        layer = PolicyName + " Security"
-        #Get Policy Before Disabling
-        #result = getaccessrulebynumber(mgmt_host,mgmt_port,rulelist,layer,sid)
-        #printresult(result,"stdout","csv")
-        #REMOVE
-        result = removerules(mgmt_host,mgmt_port,rulelist,layer,sid)
-        #If result = 0 (not successful), do nothing
-        if not result:
-            print("Nothing was changed")
+        #CHECK if credential set  
+        if checkcredential():
+            try:
+                sid = login(mgmt_host, mgmt_port, username,password)
+            except Exception as e:
+                print(e)
         else:
-            print("Removed Security Rules: ",end="")
-            for r in result:
-                print(f"{r}, ",end="")
-            #Get Policy After Disabling
+            print("Please set host and credential!")
+            sys.exit(1)
+
+        #DISABLE SECURITY RULE
+        if args.disablesecurity:
+            #getaccesslayers(mgmt_host,mgmt_port,sid)
+            layer = PolicyName + " Security"
+            #Get Policy Before Disabling
             #result = getaccessrulebynumber(mgmt_host,mgmt_port,rulelist,layer,sid)
             #printresult(result,"stdout","csv")
-            #Publish Changes
-            publishchanges(username,password,sid)
-        
+            #Disable
+            result = disablerules(mgmt_host,mgmt_port,rulelist,layer,sid)
+            if not result:
+                print("Nothing was changed")
+            else:
+                print("Disabled Security Rules: ",end="")
+                for r in result:
+                    print(f"{r}, ",end="")
+                #Get Policy After Disabling
+                #result = getaccessrulebynumber(mgmt_host,mgmt_port,rulelist,layer,sid)
+                #printresult(result,"stdout","csv")
+                #Publish Changes
+                publishchanges(username,password,sid)
 
-    #REMOVE APPLICATION RULE
-    if args.removeapplication:
-    #   getaccesslayers(mgmt_host,mgmt_port,sid)
-        layer = PolicyName + " Application"
-        #Get Policy Before Disabling
-        #result = getaccessrulebynumber(mgmt_host,mgmt_port,rulelist,layer,sid)
-        #printresult(result,"stdout","csv")
-        #REMOVE
-        result = removerules(mgmt_host,mgmt_port,rulelist,layer,sid)
-        #If result = 0 (not successful), do nothing
-        if not result:
-            print("Nothing was changed")
-        else:
-            print("Removed Application Rules: ",end="")
-            for r in result:
-                print(f"{r}, ",end="")
-            #Get Policy After Disabling
+        #DISABLE APPLICATION RULE
+        if args.disableapplication:
+            #   getaccesslayers(mgmt_host,mgmt_port,sid)
+            layer = PolicyName + " Application"
+            #Get Policy Before Disabling
             #result = getaccessrulebynumber(mgmt_host,mgmt_port,rulelist,layer,sid)
             #printresult(result,"stdout","csv")
-            #Publish Changes
-            publishchanges(username,password,sid)
+            #Disable
+            result = disablerules(mgmt_host,mgmt_port,rulelist,layer,sid)
+            if not result:
+                print("Nothing was changed")
+            else:
+                print("Disabled Application Rules: ",end="")
+                for r in result:
+                    print(f"{r}, ",end="")
+                #Get Policy After Disabling
+                #result = getaccessrulebynumber(mgmt_host,mgmt_port,rulelist,layer,sid)
+                #printresult(result,"stdout","csv")
+                #Publish Changes
+                publishchanges(username,password,sid)
 
-    #NAT RULE
-    if args.nat:
-        policy = PolicyName
-        result=getnatrule(mgmt_host,mgmt_port,rulelist,policy,sid)
-        #print(result)
-        if not args.writefile:
-            printresult(result,"stdout","csv")
-        else:
-            printresult(result,"file","csv",args.writefile)
+        #ENABLE SECURITY RULE
+        if args.enablesecurity:
+            #   getaccesslayers(mgmt_host,mgmt_port,sid)
+            layer = PolicyName + " Security"
+            #Get Policy Before Disabling
+            #result = getaccessrulebynumber(mgmt_host,mgmt_port,rulelist,layer,sid)
+            #printresult(result,"stdout","csv")
+            #Disable
+            result = enablerules(mgmt_host,mgmt_port,rulelist,layer,sid)
+            if not result:
+                print("Nothing was changed")
+            else:
+                print("Enabled Security Rules: ",end="")
+                for r in result:
+                    print(f"{r}, ",end="")
+                #Get Policy After Disabling
+                #result = getaccessrulebynumber(mgmt_host,mgmt_port,rulelist,layer,sid)
+                #printresult(result,"stdout","csv")
+                #Publish Changes
+                publishchanges(username,password,sid)
 
-    #SECURITY ACCESS RULE
-    if args.security:
-    #   getaccesslayers(mgmt_host,mgmt_port,sid)
-        layer = PolicyName + " Security"
-        result = getaccessrulebynumber(mgmt_host,mgmt_port,rulelist,layer,sid)
-        if not args.writefile:
-            printresult(result,"stdout","csv")
-        else:
-            printresult(result,"file","csv",args.writefile)
+        #ENABLE APPLICATION RULE
+        if args.enableapplication:
+            #   getaccesslayers(mgmt_host,mgmt_port,sid)
+            layer = PolicyName + " Application"
+            #Get Policy Before Disabling
+            #result = getaccessrulebynumber(mgmt_host,mgmt_port,rulelist,layer,sid)
+            #printresult(result,"stdout","csv")
+            #Disable
+            result = enablerules(mgmt_host,mgmt_port,rulelist,layer,sid)
+            if not result:
+                print("Nothing was changed")
+            else:
+                print("Enabled Application Rules: ",end="")
+                for r in result:
+                    print(f"{r}, ",end="")
+                #Get Policy After Disabling
+                #result = getaccessrulebynumber(mgmt_host,mgmt_port,rulelist,layer,sid)
+                #printresult(result,"stdout","csv")
+                #Publish Changes
+                publishchanges(username,password,sid)
 
-    #APPLICATION ACCESS RULE
-    if args.application:
-        layer = PolicyName + " Application"
-        result = getaccessrulebynumber(mgmt_host,mgmt_port,rulelist,layer,sid)
-        if not args.writefile:
-            printresult(result,"stdout","csv")
-        else:
-            printresult(result,"file","csv",args.writefile)
-    
-    #Application Site
-    if args.applicationsite:
-        result=getapplicationsite(mgmt_host,mgmt_port,rulelist,sid)
-        if not args.writefile:
-            printresult(result,"stdout","csv")
-        else:
-            printresult(result,"file","txt",args.writefile)
-    
-    #Network Group
-    if args.group:
-        result=getnetworkgroup(mgmt_host,mgmt_port,rulelist,sid)
-        if not args.writefile:
-            printresult(result,"stdout","csv")
-        else:
-            printresult(result,"file","csv",args.writefile)
+        #REMOVE SECURITY RULE
+        if args.removesecurity:
+        #   getaccesslayers(mgmt_host,mgmt_port,sid)
+            layer = PolicyName + " Security"
+            #Get Policy Before Disabling
+            #result = getaccessrulebynumber(mgmt_host,mgmt_port,rulelist,layer,sid)
+            #printresult(result,"stdout","csv")
+            #REMOVE
+            result = removerules(mgmt_host,mgmt_port,rulelist,layer,sid)
+            #If result = 0 (not successful), do nothing
+            if not result:
+                print("Nothing was changed")
+            else:
+                print("Removed Security Rules: ",end="")
+                for r in result:
+                    print(f"{r}, ",end="")
+                #Get Policy After Disabling
+                #result = getaccessrulebynumber(mgmt_host,mgmt_port,rulelist,layer,sid)
+                #printresult(result,"stdout","csv")
+                #Publish Changes
+                publishchanges(username,password,sid)
+            
 
-    #Log out gracefully
-    logout(username,password,sid)	
+        #REMOVE APPLICATION RULE
+        if args.removeapplication:
+        #   getaccesslayers(mgmt_host,mgmt_port,sid)
+            layer = PolicyName + " Application"
+            #Get Policy Before Disabling
+            #result = getaccessrulebynumber(mgmt_host,mgmt_port,rulelist,layer,sid)
+            #printresult(result,"stdout","csv")
+            #REMOVE
+            result = removerules(mgmt_host,mgmt_port,rulelist,layer,sid)
+            #If result = 0 (not successful), do nothing
+            if not result:
+                print("Nothing was changed")
+            else:
+                print("Removed Application Rules: ",end="")
+                for r in result:
+                    print(f"{r}, ",end="")
+                #Get Policy After Disabling
+                #result = getaccessrulebynumber(mgmt_host,mgmt_port,rulelist,layer,sid)
+                #printresult(result,"stdout","csv")
+                #Publish Changes
+                publishchanges(username,password,sid)
+
+        #NAT RULE
+        if args.nat:
+            policy = PolicyName
+            result=getnatrule(mgmt_host,mgmt_port,rulelist,policy,sid)
+            #print(result)
+            if not args.writefile:
+                printresult(result,"stdout","csv")
+            else:
+                printresult(result,"file","csv",args.writefile)
+
+        #SECURITY ACCESS RULE
+        if args.security:
+        #   getaccesslayers(mgmt_host,mgmt_port,sid)
+            layer = PolicyName + " Security"
+            result = getaccessrulebynumber(mgmt_host,mgmt_port,rulelist,layer,sid)
+            if not args.writefile:
+                printresult(result,"stdout","csv")
+            else:
+                printresult(result,"file","csv",args.writefile)
+
+        #APPLICATION ACCESS RULE
+        if args.application:
+            layer = PolicyName + " Application"
+            result = getaccessrulebynumber(mgmt_host,mgmt_port,rulelist,layer,sid)
+            if not args.writefile:
+                printresult(result,"stdout","csv")
+            else:
+                printresult(result,"file","csv",args.writefile)
+        
+        #Application Site
+        if args.applicationsite:
+            result=getapplicationsite(mgmt_host,mgmt_port,rulelist,sid)
+            if not args.writefile:
+                printresult(result,"stdout","csv")
+            else:
+                printresult(result,"file","txt",args.writefile)
+        
+        #Network Group
+        if args.group:
+            result=getnetworkgroup(mgmt_host,mgmt_port,rulelist,sid)
+            if not args.writefile:
+                printresult(result,"stdout","csv")
+            else:
+                printresult(result,"file","csv",args.writefile)
+        logout(username,password,sid)
+    except:
+        print(sys.exc_info()[1])     
+        	
 
 def menu(command_line=None):
     parser = argparse.ArgumentParser('Blame Praise app')
