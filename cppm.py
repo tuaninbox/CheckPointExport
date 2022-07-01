@@ -1,12 +1,9 @@
 import requests, json, sys, os, argparse, time
 from getpass import getpass
+from configparser import ConfigParser
 #from json2html import *
 import urllib3
 urllib3.disable_warnings()
-
-############## VARIABLE ############
-PolicyName="Test-Policy"
-####################################
 
 #Define Colors for Printed Text to STDOUT
 class bcolors:
@@ -23,20 +20,53 @@ class bcolors:
 def printstatus(rulenumber):
     print('Exporting Rule : '+str(rulenumber), end='\r')
 
-def checkcredential1():
+def checkcredential():
+    try:
+        #Read config.ini file
+        config_object = ConfigParser()
+        config_object.read("cppm.ini")
+        #Get the SERVER section
+        SERVER = config_object["SERVER"]
+    except:
+        print("cppm.ini does not exist\nPlease provide details below!")
     global mgmt_host
-    mgmt_host = ""
+    try:
+        mgmt_host = SERVER["mgmthost"]
+        if mgmt_host == "":
+            raise
+    except:
+        mgmt_host = input("Check Point Management Host IP: ")
     global mgmt_port
-    mgmt_port = ""
+    try:
+        mgmt_port = SERVER["mgmtport"]
+        if mgmt_port == "":
+            raise
+    except:
+        mgmt_port = input("Port: ")
     global username
-    username= ""
+    try:
+        username = SERVER["cpuser"]
+        if username == "":
+            raise 
+    except:
+        username= input("Username: ")
     global password
-    password=str(os.environ.get("cppass"))
-    if password == "None":
+    try:
+        password = SERVER["cppass"]
+        if password == "":
+            raise
+    except:
         password= getpass("Password: ")
+    global PolicyName
+    try:
+        PolicyName = SERVER["policyname"]
+        if PolicyName == "":
+            raise
+    except:
+        PolicyName = input("Policy Name:")
     return 1
 
-def checkcredential():
+def checkcredential1():
     global mgmt_host
     mgmt_host = str(os.environ.get("mgmthost"))
     global mgmt_port
@@ -127,7 +157,7 @@ def discardchanges(user,password,sid,verbose=0):
             if result["message"] == "OK":
                 print("Discard changes successfully")				
             if verbose:
-                print("Discard result: " + json.dumps(logout_result))
+                print("Discard result: " + json.dumps(result))
         if answer in ['n','N']:
             print("Changes were not discarded")
 
@@ -639,7 +669,7 @@ def main():
         rulelist=getnumberlist(args.rule,"r")
 
     #CHECK if credential set  
-    if checkcredential1():
+    if checkcredential():
         try:
             sid = login(mgmt_host, mgmt_port, username,password)
         except Exception as e:
