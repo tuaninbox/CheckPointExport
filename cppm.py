@@ -138,6 +138,9 @@ def publishchanges(user,password,sid,verbose=0):
         print(f"{bcolors.YELLOW}\nCAUTION: {bcolors.CYAN}You are working on {bcolors.PURPLE}{PolicyName}{bcolors.ENDC}")
         answer = input("Are you sure to publish all changes?[Y|N] ")
         if answer in ['y','Y']:
+            comment = input("Publish Comment: ")
+            result = api_call(mgmt_host, mgmt_port,"set-session", {"description":comment},sid)
+            #print(result)
             result = api_call(mgmt_host, mgmt_port,"publish", {},sid)
             if result["task-id"]:
                 print(f"Published changes successfully. Task ID: {result['task-id']}")				
