@@ -495,6 +495,30 @@ def getapplicationsite(server,port,names,sid):
         listofrule.append(rule)    
     return listofrule
 
+def whereused(server,port,names,sid):
+    command = 'where-used'
+    header=["No","Name","Column","Policy"]
+    listofrule=[]
+    listofrule.append(header)
+    #print(names)
+    for n in names:
+        host_data = {'name':n}
+        result = api_call(server, port,command, host_data ,sid)
+        for r in result['used-directly']['access-control-rules']:
+            rule=[]
+            rule.append(r['position'])
+            if 'name' in r['rule']:
+                rule.append(r['rule']['name'])
+            else:
+                rule.append("")
+            rule.append(r['rule-columns'])
+            rule.append(r['layer']['name'])
+            #print(rule)
+            listofrule.append(rule)
+    print(f"Number of rule found {len(listofrule)-1}") 
+    time.sleep(2)   
+    return listofrule
+
 def getnetworkgroup(server,port,groups,sid):
     command = 'show-group'
     header=["GroupName","Name","Type","Address"]
@@ -627,7 +651,7 @@ def removerules(server,port,rulelist,layer,sid,verbose=0):
 
 def main():
 
-    try:
+    #try:
         #Menu
         parser=argparse.ArgumentParser(description='Check Point Policy Management')
         parser.add_argument('-w','--writefile',type=str,metavar='',help='File to write output to')
@@ -646,6 +670,7 @@ def main():
         group.add_argument('-ea', '--enableapplication',action='store_true', help='Enable Application Rule')
         group.add_argument('-rs', '--removesecurity',action='store_true', help='Remove Security Rule')
         group.add_argument('-ra', '--removeapplication',action='store_true', help='Remove Application Rule')
+        group.add_argument('-wu', '--whereused',action='store_true', help='Find where the objects used')
         group.add_argument('-t', '--test',action='store_true', help='For Testing Purpose')
         args=parser.parse_args()
 
@@ -659,10 +684,10 @@ def main():
             
         #GET Rule List or Application Site Name List
         ## Get name list like application sites or group name from file -f 
-        if args.applicationsite or args.group and args.file:
+        if args.applicationsite or args.group or args.whereused and args.file:
             rulelist=getnamelist(args.file,"f")
         ## Get name list like application sites or group name from cli -r
-        elif args.applicationsite or args.group and args.rule:
+        elif args.applicationsite or args.group or args.whereused and args.rule:
             rulelist=getnamelist(args.rule,"r")
         ## Get number rule list from file -f
         elif args.file:
@@ -854,9 +879,17 @@ def main():
                 printresult(result,"stdout","csv")
             else:
                 printresult(result,"file","csv",args.writefile)
+        
+        #Where-Used
+        if args.whereused:
+            result=whereused(mgmt_host,mgmt_port,rulelist,sid)
+            if not args.writefile:
+                printresult(result,"stdout","csv")
+            else:
+                printresult(result,"file","csv",args.writefile)
         logout(username,password,sid)
-    except:
-        print(sys.exc_info()[1])     
+    #except:
+    #    print(f"Error: {sys.exc_info()[1]}")     
         	
 
 def menu(command_line=None):
