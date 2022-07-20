@@ -279,15 +279,16 @@ def getaccessrulebynumber(server,port,rulelist,layer,sid,verbose=True):
     #sort list 
     rulelist.sort()
     command = 'show-access-rule'
-    header=["Rule","Name","Source","Destination","Services","VPN","Content","Action","Time","Track","Install On","Comment","Last-modify-time","Last-modifier","Creation-time","Creator","Enabled","UID"]
+    header=["Rule","Name","Source","Destination","Services","VPN","Content","Action","Time","Track","Install On","Comment","Last-modify-time","Last-modifier","Creation-time","Creator","Enabled","Hit","UID"]
     listofrule=[]
     listofrule.append(header)
     for rulenumber in rulelist:
         if int(rulenumber) > totalrule:
             rulenumber = totalrule
-        host_data = {'rule-number':rulenumber, 'layer':str(layer)}
+        host_data = {'rule-number':rulenumber, 'layer':str(layer), 'show-hits':True}
         result = api_call(server, port,command, host_data ,sid)
         #print(f"Access Rule {result}\n")
+        #print(f"Access Hits {result['hits']}")
         #print(f"Access Rule Source {result['source']}\n")
         #print(f"Access Rule Destination {result['destination']}\n")
         #print(f"Access Rule Service {result['service']}\n")
@@ -370,6 +371,7 @@ def getaccessrulebynumber(server,port,rulelist,layer,sid,verbose=True):
         rule.append(result['meta-info']['creation-time']['iso-8601'])
         rule.append(result['meta-info']['creator'])            
         rule.append(result['enabled'])
+        rule.append(result['hits']['value'])
         rule.append(result['uid'])
         listofrule.append(rule)
         if result['action']['name'] == "Inner Layer":
@@ -388,12 +390,12 @@ def getaccessrulebynumber(server,port,rulelist,layer,sid,verbose=True):
 
 def getaccessruleinline(server,port,parentrule,total,layer,sid,addheader,verbose=True):
     command = 'show-access-rule'
-    header=["Rule","Name","Source","Destination","Services","VPN","Content","Action","Time","Track","Install On","Comment","Last-modify-time","Last-modifier","Creation-time","Creator","Enabled","UID"]
+    header=["Rule","Name","Source","Destination","Services","VPN","Content","Action","Time","Track","Install On","Comment","Last-modify-time","Last-modifier","Creation-time","Creator","Enabled","Hit","UID"]
     listofrule=[]
     if addheader == 1:
         listofrule.append(header)
     for rulenumber in range(1,total+1):
-        host_data = {'rule-number':rulenumber, 'layer':layer}
+        host_data = {'rule-number':rulenumber, 'layer':layer, 'show-hits':True}
         result = api_call(server, port,command, host_data ,sid)
         rule=[]
         subrulenumber=str(parentrule)+"."+str(rulenumber)
@@ -465,6 +467,7 @@ def getaccessruleinline(server,port,parentrule,total,layer,sid,addheader,verbose
         rule.append(result['meta-info']['creation-time']['iso-8601'])
         rule.append(result['meta-info']['creator'])            
         rule.append(result['enabled'])
+        rule.append(result['hits']['value'])
         rule.append(result['uid'])
         listofrule.append(rule)
     return listofrule
